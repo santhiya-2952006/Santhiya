@@ -1,1 +1,153 @@
-# Santhiya
+<!DOCTYPE html>
+<html>
+<head>
+  <title>IBM N-J File Upload Manager</title>
+  <style>
+    body {
+      font-family: Arial;
+      background: #eef2f3;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 30px;
+    }
+    h2 {
+      color: #003366;
+    }
+    #fileList {
+      width: 300px;
+      margin-top: 15px;
+      padding: 10px;
+      background: white;
+      border-radius: 8px;
+      box-shadow: 0 0 5px gray;
+    }
+    .file {
+      margin-bottom: 8px;
+      padding: 6px;
+      border-bottom: 1px solid #ccc;
+    }
+    progress {
+      width: 100%;
+      height: 10px;
+    }
+    button {
+      background: #003366;
+      color: white;
+      padding: 8px 15px;
+      border: none;
+      border-radius: 5px;
+      margin-top: 10px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+
+  <h2>IBM N-J File Upload Manager</h2>
+
+  <input type="file" id="fileInput" multiple>
+  <button onclick="uploadFiles()">Upload</button>
+
+  <div id="fileList"></div>
+
+  <script>
+    let files = [];
+
+    document.getElementById('fileInput').addEventListener('change', function(e) {
+      files = Array.from(e.target.files);
+      showFiles();
+    });
+
+    function showFiles() {
+      const list = document.getElementById('fileList');
+      list.innerHTML = '';
+      files.forEach((file, index) => {
+        const div = document.createElement('div');
+        div.className = 'file';
+        div.innerHTML = `
+          <strong>${file.name}</strong> (${Math.round(file.size / 1024)} KB)
+          <br><progress id="progress${index}" value="0" max="100"></progress>
+        `;
+        list.appendChild(div);
+      });
+    }
+
+    function uploadFiles() {
+      files.forEach((file, i) => {
+        let progress = document.getElementById('progress' + i);
+        let percent = 0;
+        let interval = setInterval(() => {
+          if (percent >= 100) {
+            clearInterval(interval);
+          } else {
+            percent += 10;
+            progress.value = percent;
+          }
+        }, 300);
+      });
+      alert("Files uploading simulated!");
+    }
+  </script>
+
+</body>
+</html>// app.js
+const express = require("express");
+const multer = require("multer");
+const fs = require("fs");
+const path = require("path");
+
+const app = express();
+const PORT = 3000;
+
+// Create uploads folder
+const UPLOAD_DIR = "./uploads";
+if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR);
+
+// Multer storage & limits
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, UPLOAD_DIR),
+  filename: (req, file, cb) => cb(null, Date.now() + "-" + file.originalname)
+});
+const upload = multer({ storage, limits: { fileSize: 50 * 1024 * 1024 } }); // 50MB
+
+// Serve static files
+app.use("/uploads", express.static(UPLOAD_DIR));
+app.use(express.urlencoded({ extended: true }));
+
+// Home page
+app.get("/", (req, res) => {
+  const files = fs.readdirSync(UPLOAD_DIR);
+  res.send(`
+    <h2>IBM N-J File Upload Manager</h2>
+    <form action="/upload" method="post" enctype="multipart/form-data">
+      <input type="file" name="files" multiple required>
+      <button type="submit">Upload</button>
+    </form>
+    <h3>Uploaded Files:</h3>
+    <ul>
+      ${files.map(f => `
+        <li>
+          <a href="/uploads/${f}" target="_blank">${f}</a>
+          <form style="display:inline" method="post" action="/delete">
+            <input type="hidden" name="filename" value="${f}">
+            <button type="submit">Delete</button>
+          </form>
+        </li>
+      `).join("")}
+    </ul>
+  `);
+});
+
+// Upload files
+app.post("/upload", upload.array("files"), (req, res) => {
+  res.redirect("/");
+});
+
+// Delete file
+app.post("/delete", (req, res) => {
+  const file = req.body.filename;
+  const filePath = path.join(UPLOAD_DIR, file);
+  if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+  res.redirect("/");
+});
